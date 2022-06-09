@@ -112,7 +112,7 @@ void TriangleAreaConservationMeshForceComputeGPU::computeForces(uint64_t timeste
         d_virial.data,
         m_virial.getPitch(),
         m_pdata->getN(),
-        m_mesh_data->getMeshTriangleData()->getN(),
+        m_mesh_data->getMeshTriangleData()->getNGlobal(),
         d_pos.data,
         box,
         d_gpu_meshtrianglelist.data,

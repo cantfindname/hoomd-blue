@@ -357,8 +357,8 @@ struct get_migrate_key : public std::unary_function<const unsigned int, unsigned
     };
 
 //! Constructor
-template<class group_data, bool inMesh>
-CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::GroupCommunicatorGPU(
+template<class group_data>
+CommunicatorGPU::GroupCommunicatorGPU<group_data>::GroupCommunicatorGPU(
     CommunicatorGPU& gpu_comm,
     std::shared_ptr<group_data> gdata)
     : m_gpu_comm(gpu_comm), m_exec_conf(m_gpu_comm.m_exec_conf), m_gdata(gdata),
@@ -403,8 +403,8 @@ CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::GroupCommunicatorGPU(
     assert(sizeof(unsigned int) * 8 >= group_data::size);
     }
 
-template<class group_data, bool inMesh>
-CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::GroupCommunicatorGPU(
+template<class group_data>
+CommunicatorGPU::GroupCommunicatorGPU<group_data>::GroupCommunicatorGPU(
     CommunicatorGPU& gpu_comm)
     : m_gpu_comm(gpu_comm), m_exec_conf(m_gpu_comm.m_exec_conf), m_gdata(NULL),
       m_ghost_group_begin(m_exec_conf), m_ghost_group_end(m_exec_conf),
@@ -445,19 +445,19 @@ CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::GroupCommunicatorGPU(
     m_groups_in.swap(groups_in);
     }
 
-template<class group_data, bool inMesh>
-void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::addGroupData(
+template<class group_data>
+void CommunicatorGPU::GroupCommunicatorGPU<group_data>::addGroupData(
     std::shared_ptr<group_data> gdata)
     {
     m_gdata = gdata;
 
     // the size of the bit field must be larger or equal the group size
-    assert(sizeof(unsigned int) * 8 >= group_data::size);
+    assert(sizeof(unsigned int) * 6 >= group_data::size);
     }
 
 //! Migrate groups
-template<class group_data, bool inMesh>
-void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::migrateGroups(bool incomplete,
+template<class group_data>
+void CommunicatorGPU::GroupCommunicatorGPU<group_data>::migrateGroups(bool incomplete,
                                                                               bool local_multiple)
     {
     if (m_gdata->getNGlobal())
@@ -526,7 +526,7 @@ void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::migrateGroups(bo
             uint3 my_pos = decomposition->getGridPos();
 
             // mark groups that have members leaving this domain
-            gpu_mark_groups<group_data::size, inMesh>(m_gpu_comm.m_pdata->getN(),
+            gpu_mark_groups<group_data::size>(m_gpu_comm.m_pdata->getN(),
                                                       d_comm_flags.data,
                                                       m_gdata->getN(),
                                                       d_members.data,
@@ -584,7 +584,7 @@ void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::migrateGroups(bo
 
             // scatter groups into output arrays according to scan result (d_scan), determine send
             // groups and scan
-            gpu_scatter_ranks_and_mark_send_groups<group_data::size, inMesh>(
+            gpu_scatter_ranks_and_mark_send_groups<group_data::size>(
                 m_gdata->getN(),
                 d_group_tag.data,
                 d_group_ranks.data,
@@ -611,10 +611,6 @@ void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::migrateGroups(bo
         map_t send_map;
 
         unsigned int group_size = group_data::size;
-        if (inMesh)
-            {
-            group_size /= 2;
-            }
 
             {
             // access output buffers
@@ -845,7 +841,7 @@ void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::migrateGroups(bo
                                                    access_mode::read);
 
             // update local rank information
-            gpu_update_ranks_table<group_data::size, inMesh>(m_gdata->getN(),
+            gpu_update_ranks_table<group_data::size>(m_gdata->getN(),
                                                              d_group_ranks.data,
                                                              d_group_rtag.data,
                                                              n_recv_tot,
@@ -896,7 +892,7 @@ void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::migrateGroups(bo
 
             // scatter groups to be sent into output buffer, mark groups that have no local members
             // for removal
-            gpu_scatter_and_mark_groups_for_removal<group_data::size, inMesh>(
+            gpu_scatter_and_mark_groups_for_removal<group_data::size>(
                 m_gdata->getN(),
                 d_groups.data,
                 d_group_typeval.data,
@@ -1282,8 +1278,8 @@ void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::migrateGroups(bo
         }
     }
 
-template<class group_data, bool inMesh>
-void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::exchangeGhostGroups(
+template<class group_data>
+void CommunicatorGPU::GroupCommunicatorGPU<group_data>::exchangeGhostGroups(
     const GlobalVector<unsigned int>& plans)
     {
     if (m_gdata->getNGlobal())
@@ -1336,7 +1332,7 @@ void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::exchangeGhostGro
                                              access_mode::read);
             ArrayHandle<unsigned int> d_plans(plans, access_location::device, access_mode::read);
 
-            gpu_make_ghost_group_exchange_plan<group_data::size, inMesh>(
+            gpu_make_ghost_group_exchange_plan<group_data::size>(
                 d_ghost_group_plan.data,
                 d_groups.data,
                 m_gdata->getN(),
@@ -1687,7 +1683,7 @@ void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::exchangeGhostGro
                 ScopedAllocation<unsigned int> d_scan(alloc, n_recv_ghost_groups_tot[stage]);
 
                 // copy recv buf into group data, omitting duplicates and groups with nonlocal ptls
-                gpu_exchange_ghost_groups_copy_buf<group_data::size, inMesh>(
+                gpu_exchange_ghost_groups_copy_buf<group_data::size>(
                     n_recv_ghost_groups_tot[stage],
                     d_groups_recvbuf.data,
                     d_group_tag.data + first_idx,
@@ -1734,8 +1730,8 @@ void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::exchangeGhostGro
     }
 
 //! Mark ghost particles
-template<class group_data, bool inMesh>
-void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::markGhostParticles(
+template<class group_data>
+void CommunicatorGPU::GroupCommunicatorGPU<group_data>::markGhostParticles(
     const GlobalVector<unsigned int>& plans,
     unsigned int mask)
     {
@@ -1766,7 +1762,7 @@ void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::markGhostParticl
         Index3D di = decomposition->getDomainIndexer();
         uint3 my_pos = decomposition->getGridPos();
 
-        gpu_mark_bonded_ghosts<group_data::size, inMesh>(m_gdata->getN(),
+        gpu_mark_bonded_ghosts<group_data::size>(m_gdata->getN(),
                                                          d_groups.data,
                                                          d_group_ranks.data,
                                                          d_pos.data,
@@ -1781,6 +1777,7 @@ void CommunicatorGPU::GroupCommunicatorGPU<group_data, inMesh>::markGhostParticl
         if (m_exec_conf->isCUDAErrorCheckingEnabled())
             CHECK_CUDA_ERROR();
         }
+
     }
 
 //! Transfer particles between neighboring domains

@@ -1627,6 +1627,8 @@ void NeighborList::resizeNlist(size_t size)
         m_exec_conf->msg->notice(6)
             << "nlist: (Re-)allocating neighbor list, new size " << size << " uints " << endl;
 
+	std::cout << "(Re-)allocate " << std::endl;
+
         size_t alloc_size = m_nlist.getNumElements() ? m_nlist.getNumElements() : 1;
 
         while (size > alloc_size)

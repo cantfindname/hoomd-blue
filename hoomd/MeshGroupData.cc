@@ -204,56 +204,15 @@ void MeshGroupData<group_size, Group, name, snap, bond>::initializeFromSnapshot(
     	        {
 
     	        typename BondedGroupData<group_size, Group, name, true>::members_t triag;
-    	        std::vector<typename BondedGroupData<group_size, Group, name, true>::members_t> bonds(
-    	            3);
     	        triag.tag[0] = snapshot.groups[group_idx].tag[0];
     	        triag.tag[1] = snapshot.groups[group_idx].tag[1];
     	        triag.tag[2] = snapshot.groups[group_idx].tag[2];
 
-    	        bonds[0].tag[0] = triag.tag[0];
-    	        bonds[0].tag[1] = triag.tag[1];
-    	        bonds[1].tag[0] = triag.tag[1];
-    	        bonds[1].tag[1] = triag.tag[2];
-    	        bonds[2].tag[0] = triag.tag[2];
-    	        bonds[2].tag[1] = triag.tag[0];
+    	        triag.tag[3] = snapshot.groups[group_idx].tag[0];
+    	        triag.tag[4] = snapshot.groups[group_idx].tag[1];
+    	        triag.tag[5] = snapshot.groups[group_idx].tag[2];
 
-    	        unsigned int bond0, bond1; 
-    	        for (unsigned int j = 0; j < bonds.size(); ++j)
-    	            {
-    	            if(bonds[j].tag[0] < bonds[j].tag[1])
-    	    	    {
-    	    	    bond0 = bonds[j].tag[0]; 
-    	    	    bond1 = bonds[j].tag[1]; 
-    	    	    }
-    	    	else
-    	    	    {
-    	    	    bond1 = bonds[j].tag[0]; 
-    	    	    bond0 = bonds[j].tag[1]; 
-    	    	    }
-    	    	if(all_helper.size() < bond0+1)
-    	               all_helper.resize(bond0+1);
-
-    	    	bool update = true;
-
-    	            for (unsigned int i = 0; i < all_helper[bond0].size(); i+=2)
-    	                {
-    	                if (bond1 == all_helper[bond0][i])
-    	                    {
-    	                    triag.tag[3 + j] = all_helper[bond0][i+1];
-    	    		update = false;
-    	                    break;
-    	                    }
-    	                }
-  
-    	           if(update)
-    	              {
-    	                triag.tag[3 + j] = triag_number;
-    	                all_helper[bond0].push_back(bond1);
-    	                all_helper[bond0].push_back(triag_number);
-    	                triag_number++;
-    	              }
-    	           }
-    	           all_groups[group_idx] = triag;
+    	        all_groups[group_idx] = triag;
     	        }
     	    }
     	}

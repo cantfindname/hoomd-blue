@@ -184,7 +184,7 @@ void gpu_compute_ghost_rtags(unsigned int first_idx,
 void gpu_reset_exchange_plan(unsigned int N, unsigned int* d_plan);
 
 //! Mark groups for sending
-template<unsigned int group_size, bool inMesh, typename group_t, typename ranks_t>
+template<unsigned int group_size, typename group_t, typename ranks_t>
 void gpu_mark_groups(unsigned int N,
                      const unsigned int* d_comm_flags,
                      unsigned int n_groups,
@@ -203,7 +203,6 @@ void gpu_mark_groups(unsigned int N,
 
 //! Compact rank information for groups that have been marked for sending
 template<unsigned int group_size,
-         bool inMesh,
          typename group_t,
          typename ranks_t,
          typename rank_element_t>
@@ -220,7 +219,7 @@ void gpu_scatter_ranks_and_mark_send_groups(unsigned int n_groups,
                                             rank_element_t* d_out_ranks,
                                             CachedAllocator& alloc);
 
-template<unsigned int group_size, bool inMesh, typename ranks_t, typename rank_element_t>
+template<unsigned int group_size, typename ranks_t, typename rank_element_t>
 void gpu_update_ranks_table(unsigned int n_groups,
                             ranks_t* d_group_ranks,
                             unsigned int* d_group_rtag,
@@ -228,7 +227,6 @@ void gpu_update_ranks_table(unsigned int n_groups,
                             const rank_element_t* d_ranks_recvbuf);
 
 template<unsigned int group_size,
-         bool inMesh,
          typename group_t,
          typename ranks_t,
          typename packed_t>
@@ -280,7 +278,7 @@ void gpu_add_groups(unsigned int n_groups,
                     unsigned int myrank,
                     CachedAllocator& alloc);
 
-template<unsigned int group_size, bool inMesh, typename members_t, typename ranks_t>
+template<unsigned int group_size, typename members_t, typename ranks_t>
 void gpu_mark_bonded_ghosts(unsigned int n_groups,
                             members_t* d_groups,
                             ranks_t* d_ranks,
@@ -294,7 +292,7 @@ void gpu_mark_bonded_ghosts(unsigned int n_groups,
                             unsigned int my_rank,
                             unsigned int mask);
 
-template<unsigned int group_size, bool inMesh, typename members_t>
+template<unsigned int group_size, typename members_t>
 void gpu_make_ghost_group_exchange_plan(unsigned int* d_ghost_group_plan,
                                         const members_t* d_groups,
                                         unsigned int N,
@@ -311,7 +309,7 @@ void gpu_exchange_ghost_groups_pack(unsigned int n_out,
                                     const ranks_t* d_group_ranks,
                                     group_element_t* d_groups_sendbuf);
 
-template<unsigned int size, bool inMesh, class members_t, class ranks_t, class group_element_t>
+template<unsigned int size, class members_t, class ranks_t, class group_element_t>
 void gpu_exchange_ghost_groups_copy_buf(unsigned int nrecv,
                                         const group_element_t* d_groups_recvbuf,
                                         unsigned int* d_group_tag,
