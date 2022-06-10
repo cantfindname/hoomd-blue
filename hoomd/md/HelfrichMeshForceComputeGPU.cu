@@ -469,7 +469,10 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
         Fa.z += (dsigma_dash_c * inv_sigma_c * sigma_dash_c.z - sigma_dash_c2 * dsigma_c.z);
         Fa.z += (dsigma_dash_d * inv_sigma_d * sigma_dash_d.z - sigma_dash_d2 * dsigma_d.z);
 
-        Fa *= K;
+        //Fa *= K;
+        Fa.x = 0;
+        Fa.y = 0;
+        Fa.z = 0;
 
         force.x += Fa.x;
         force.y += Fa.y;
