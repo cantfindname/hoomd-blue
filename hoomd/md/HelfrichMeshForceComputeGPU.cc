@@ -208,10 +208,10 @@ void HelfrichMeshForceComputeGPU::precomputeParameter()
 
 #ifdef ENABLE_MPI
 
-    ArrayHandle<Scalar> h_sigma(m_sigma, access_location::host, access_mode::readwrite);
+    ArrayHandle<Scalar> h_sigma(m_sigma, access_location::host, access_mode::read);
     ArrayHandle<Scalar3> h_sigma_dash(m_sigma_dash,
                                       access_location::host,
-                                      access_mode::readwrite);
+                                      access_mode::read);
     if (m_sysdef->isDomainDecomposed())
         {
         // reduce sigma and sigma_dash to all ranks

@@ -419,7 +419,6 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
         Scalar sigma_c = d_sigma[ptag_c];    // precomputed
         Scalar sigma_d = d_sigma[ptag_d];    // precomputed
 
-
         Scalar3 dc_abbc, dc_abbd, dc_baac, dc_baad;
         dc_abbc = -nbc / rab - c_abbc / rab * nab;
         dc_abbd = -nbd / rab - c_abbd / rab * nab;
@@ -487,9 +486,6 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
 
     // now that the force calculation is complete, write out the result (MEM TRANSFER: 20 bytes)
     d_force[idx] = force;
-
-    if(ptag_a==61351)
-
 
     for (unsigned int i = 0; i < 6; i++)
         d_virial[i * virial_pitch + idx] = virial[i];
