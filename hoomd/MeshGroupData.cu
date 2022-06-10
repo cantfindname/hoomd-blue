@@ -63,16 +63,6 @@ __global__ void gpu_count_mesh_kernel(const unsigned int n_groups,
             // set flag to indicate we need to grow the output array
             atomicMax(d_condition, next_flag);
         }
-
-    for (unsigned int i = group_size_half; i < group_size; ++i)
-        {
-        unsigned int tag_i = g.tag[i];
-        unsigned int pidx_i = d_rtag[tag_i];
-
-        // detect incomplete groups
-        if (pidx_i == NOT_LOCAL)
-            atomicMax(d_condition, next_flag + 1 + group_idx);
-	}
     }
 
 template<unsigned int group_size, typename group_t>
