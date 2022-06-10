@@ -34,6 +34,7 @@ __global__ void gpu_compute_helfrich_sigma_kernel(Scalar* d_sigma,
                                                   Scalar3* d_sigma_dash,
                                                   const unsigned int N,
                                                   const Scalar4* d_pos,
+                                      		  const unsigned int* d_tag,
                                                   BoxDim box,
                                                   const group_storage<4>* blist,
                                                   const Index2D blist_idx,
@@ -47,6 +48,8 @@ __global__ void gpu_compute_helfrich_sigma_kernel(Scalar* d_sigma,
 
     // load in the length of the list for this thread (MEM TRANSFER: 4 bytes)
     int n_bonds = n_bonds_list[idx];
+
+    unsigned int ptag = d_tag[idx];
 
     // read in the position of our b-particle from the a-b-c triplet. (MEM TRANSFER: 16 bytes)
     Scalar4 postype = __ldg(d_pos + idx);
@@ -146,12 +149,14 @@ __global__ void gpu_compute_helfrich_sigma_kernel(Scalar* d_sigma,
         Scalar3 sigma_dash_a = sigma_hat_ab * dab;
 
         sigma += sigma_a;
+
         sigma_dash += sigma_dash_a;
         }
+      	
 
     // now that the force calculation is complete, write out the result (MEM TRANSFER: 20 bytes)
-    d_sigma[idx] = sigma;
-    d_sigma_dash[idx] = sigma_dash;
+    d_sigma[ptag] = sigma;
+    d_sigma_dash[ptag] = sigma_dash;
     }
 
 /*! \param d_sigma Device memory to write per paricle sigma
@@ -171,6 +176,7 @@ hipError_t gpu_compute_helfrich_sigma(Scalar* d_sigma,
                                       Scalar3* d_sigma_dash,
                                       const unsigned int N,
                                       const Scalar4* d_pos,
+                                      const unsigned int* d_tag,
                                       const BoxDim& box,
                                       const group_storage<4>* blist,
                                       const Index2D blist_idx,
@@ -198,6 +204,7 @@ hipError_t gpu_compute_helfrich_sigma(Scalar* d_sigma,
                        d_sigma_dash,
                        N,
                        d_pos,
+		       d_tag,
                        box,
                        blist,
                        blist_idx,
@@ -226,6 +233,7 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
                                                   const size_t virial_pitch,
                                                   const unsigned int N,
                                                   const Scalar4* d_pos,
+                                      		  const unsigned int* d_tag,
                                                   BoxDim box,
                                                   const Scalar* d_sigma,
                                                   const Scalar3* d_sigma_dash,
@@ -249,8 +257,10 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
     Scalar4 postype = __ldg(d_pos + idx);
     Scalar3 pos = make_scalar3(postype.x, postype.y, postype.z);
 
-    Scalar3 sigma_dash_a = d_sigma_dash[idx]; // precomputed
-    Scalar sigma_a = d_sigma[idx];            // precomputed
+    unsigned int ptag_a = d_tag[idx];
+
+    Scalar3 sigma_dash_a = d_sigma_dash[ptag_a]; // precomputed
+    Scalar sigma_a = d_sigma[ptag_a];            // precomputed
     Scalar inv_sigma_a = 1.0 / sigma_a;
     Scalar sigma_dash_a2 = 0.5 * dot(sigma_dash_a, sigma_dash_a) * inv_sigma_a * inv_sigma_a;
 
@@ -264,6 +274,7 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
     // loop over all angles
     for (int bond_idx = 0; bond_idx < n_bonds; bond_idx++)
         {
+
         group_storage<4> cur_bond = blist[blist_idx(idx, bond_idx)];
 
         int cur_bond_idx = cur_bond.idx[0];
@@ -396,13 +407,18 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
 
         Scalar sigma_hat_ab = (cot_accb + cot_addb) / 2;
 
-        Scalar3 sigma_dash_b = d_sigma_dash[cur_bond_idx]; // precomputed
-        Scalar3 sigma_dash_c = d_sigma_dash[cur_idx_c];    // precomputed
-        Scalar3 sigma_dash_d = d_sigma_dash[cur_idx_d];    // precomputed
+        unsigned int ptag_b = d_tag[cur_bond_idx];
+        unsigned int ptag_c = d_tag[cur_idx_c];
+        unsigned int ptag_d = d_tag[cur_idx_d];
 
-        Scalar sigma_b = d_sigma[cur_bond_idx]; // precomputed
-        Scalar sigma_c = d_sigma[cur_idx_c];    // precomputed
-        Scalar sigma_d = d_sigma[cur_idx_d];    // precomputed
+        Scalar3 sigma_dash_b = d_sigma_dash[ptag_b]; // precomputed
+        Scalar3 sigma_dash_c = d_sigma_dash[ptag_c];    // precomputed
+        Scalar3 sigma_dash_d = d_sigma_dash[ptag_d];    // precomputed
+
+        Scalar sigma_b = d_sigma[ptag_b]; // precomputed
+        Scalar sigma_c = d_sigma[ptag_c];    // precomputed
+        Scalar sigma_d = d_sigma[ptag_d];    // precomputed
+
 
         Scalar3 dc_abbc, dc_abbd, dc_baac, dc_baad;
         dc_abbc = -nbc / rab - c_abbc / rab * nab;
@@ -472,6 +488,9 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
     // now that the force calculation is complete, write out the result (MEM TRANSFER: 20 bytes)
     d_force[idx] = force;
 
+    if(ptag_a==61351)
+
+
     for (unsigned int i = 0; i < 6; i++)
         d_virial[i * virial_pitch + idx] = virial[i];
     }
@@ -501,6 +520,7 @@ hipError_t gpu_compute_helfrich_force(Scalar4* d_force,
                                       const size_t virial_pitch,
                                       const unsigned int N,
                                       const Scalar4* d_pos,
+                                      const unsigned int* d_tag,
                                       const BoxDim& box,
                                       const Scalar* d_sigma,
                                       const Scalar3* d_sigma_dash,
@@ -534,6 +554,7 @@ hipError_t gpu_compute_helfrich_force(Scalar4* d_force,
                        virial_pitch,
                        N,
                        d_pos,
+                       d_tag,
                        box,
                        d_sigma,
                        d_sigma_dash,

@@ -124,11 +124,12 @@ void MeshGroupData<group_size, Group, name, snap, bond>::initializeFromSnapshot(
 
 
     std::vector<typename BondedGroupData<group_size, Group, name, true>::members_t> all_groups;
-    std::vector<std::vector<unsigned int> > all_helper;
-    unsigned int triag_number = 0;
-
     if (this->m_exec_conf->getRank() == 0)
     	{
+
+        std::vector<std::vector<unsigned int> > all_helper;
+        unsigned int triag_number = 0;
+
 
     	if (bond)
     	    {
@@ -438,6 +439,17 @@ void MeshGroupData<group_size, Group, name, snap, bond>::rebuildGPUTable()
 
                     h_n_groups.data[idx]++;
                     }
+
+                for (unsigned int i = group_size_half; i < group_size; ++i)
+                    {
+                    unsigned int tag = g.tag[i];
+                    unsigned int idx = h_rtag.data[tag];
+
+                    if (idx == NOT_LOCAL)
+                        {
+                        throw std::runtime_error("Error building GPU group table.");
+                        }
+                    }
                 }
 
             // find the maximum number of groups
@@ -579,7 +591,6 @@ void MeshGroupData<group_size, Group, name, snap, bond>::rebuildGPUTableGPU()
                 d_n_groups.data,
                 this->m_gpu_table_indexer.getH(),
                 d_condition.data,
-		bond,
                 this->m_next_flag,
                 flag,
                 d_gpu_table.data,

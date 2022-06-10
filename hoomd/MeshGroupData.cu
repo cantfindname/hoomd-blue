@@ -63,6 +63,16 @@ __global__ void gpu_count_mesh_kernel(const unsigned int n_groups,
             // set flag to indicate we need to grow the output array
             atomicMax(d_condition, next_flag);
         }
+
+    for (unsigned int i = group_size_half; i < group_size; ++i)
+        {
+        unsigned int tag_i = g.tag[i];
+        unsigned int pidx_i = d_rtag[tag_i];
+
+        // detect incomplete groups
+        if (pidx_i == NOT_LOCAL)
+            atomicMax(d_condition, next_flag + 1 + group_idx);
+	}
     }
 
 template<unsigned int group_size, typename group_t>
@@ -75,8 +85,7 @@ __global__ void gpu_mesh_scatter_kernel(unsigned int n_scratch,
                                         const unsigned int* d_rtag,
                                         group_t* d_pidx_group_table,
                                         unsigned int* d_pidx_gpos_table,
-                                        unsigned int pidx_group_table_pitch,
-					const bool bond)
+                                        unsigned int pidx_group_table_pitch)
     {
     unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -100,7 +109,7 @@ __global__ void gpu_mesh_scatter_kernel(unsigned int n_scratch,
     for (unsigned int k = group_size_half; k < group_size; ++k)
         {
         unsigned int tag = g.tag[k];
-	if(bond) tag = d_rtag[tag];
+	tag = d_rtag[tag];
 
         p.idx[k - 1] = tag;
         }
@@ -135,7 +144,6 @@ void gpu_update_mesh_table(const unsigned int n_groups,
                            unsigned int* d_n_groups,
                            unsigned int max_n_groups,
                            unsigned int* d_condition,
-                           const bool bond,
                            unsigned int next_flag,
                            unsigned int& flag,
                            group_t* d_pidx_group_table,
@@ -220,8 +228,7 @@ void gpu_update_mesh_table(const unsigned int n_groups,
                            d_rtag,
                            d_pidx_group_table,
                            d_pidx_gpos_table,
-                           pidx_group_table_pitch,
-			   bond);
+                           pidx_group_table_pitch);
         }
     }
 
@@ -238,7 +245,6 @@ template void gpu_update_mesh_table<4>(const unsigned int n_groups,
                                        unsigned int* d_n_groups,
                                        unsigned int max_n_groups,
                                        unsigned int* d_condition,
-				       const bool bond,
                                        unsigned int next_flag,
                                        unsigned int& flag,
                                        group_storage<4>* d_pidx_group_table,
@@ -258,7 +264,6 @@ template void gpu_update_mesh_table<6>(const unsigned int n_groups,
                                        unsigned int* d_n_groups,
                                        unsigned int max_n_groups,
                                        unsigned int* d_condition,
-				       const bool bond,
                                        unsigned int next_flag,
                                        unsigned int& flag,
                                        group_storage<6>* d_pidx_group_table,

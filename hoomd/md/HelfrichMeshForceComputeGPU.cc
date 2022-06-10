@@ -29,23 +29,23 @@ HelfrichMeshForceComputeGPU::HelfrichMeshForceComputeGPU(std::shared_ptr<SystemD
         }
 
     // allocate and zero device memory
-    GPUArray<Scalar> params(this->m_mesh_data->getMeshTriangleData()->getNTypes(),
-                            this->m_exec_conf);
+    GPUArray<Scalar> params(m_mesh_data->getMeshTriangleData()->getNTypes(),
+                            m_exec_conf);
     m_params.swap(params);
 
     // allocate flags storage on the GPU
-    GPUArray<unsigned int> flags(1, this->m_exec_conf);
+    GPUArray<unsigned int> flags(1, m_exec_conf);
     m_flags.swap(flags);
 
     // reset flags
     ArrayHandle<unsigned int> h_flags(m_flags, access_location::host, access_mode::overwrite);
     h_flags.data[0] = 0;
 
-    unsigned int warp_size = this->m_exec_conf->dev_prop.warpSize;
+    unsigned int warp_size = m_exec_conf->dev_prop.warpSize;
     m_tuner_force.reset(
-        new Autotuner(warp_size, 1024, warp_size, 5, 100000, "helfrich_forces", this->m_exec_conf));
+        new Autotuner(warp_size, 1024, warp_size, 5, 100000, "helfrich_forces", m_exec_conf));
     m_tuner_sigma.reset(
-        new Autotuner(warp_size, 1024, warp_size, 5, 100000, "helfrich_sigma", this->m_exec_conf));
+        new Autotuner(warp_size, 1024, warp_size, 5, 100000, "helfrich_sigma", m_exec_conf));
 
     GlobalVector<Scalar3> tmp_sigma_dash(m_pdata->getNGlobal(), m_exec_conf);
     GlobalVector<Scalar> tmp_sigma(m_pdata->getNGlobal(), m_exec_conf);
@@ -95,17 +95,22 @@ void HelfrichMeshForceComputeGPU::computeForces(uint64_t timestep)
     ArrayHandle<Scalar> d_sigma(m_sigma, access_location::device, access_mode::read);
     ArrayHandle<Scalar3> d_sigma_dash(m_sigma_dash, access_location::device, access_mode::read);
 
-    BoxDim box = this->m_pdata->getGlobalBox();
+    ArrayHandle<unsigned int> d_tag(m_pdata->getTags(),
+                                      access_location::device,
+                                      access_mode::read);
+
+
+    BoxDim box = m_pdata->getGlobalBox();
 
     const GPUArray<typename MeshBond::members_t>& gpu_meshbond_list
-        = this->m_mesh_data->getMeshBondData()->getGPUTable();
-    const Index2D& gpu_table_indexer = this->m_mesh_data->getMeshBondData()->getGPUTableIndexer();
+        = m_mesh_data->getMeshBondData()->getGPUTable();
+    const Index2D& gpu_table_indexer = m_mesh_data->getMeshBondData()->getGPUTableIndexer();
 
     ArrayHandle<typename MeshBond::members_t> d_gpu_meshbondlist(gpu_meshbond_list,
                                                                  access_location::device,
                                                                  access_mode::read);
     ArrayHandle<unsigned int> d_gpu_n_meshbond(
-        this->m_mesh_data->getMeshBondData()->getNGroupsArray(),
+        m_mesh_data->getMeshBondData()->getNGroupsArray(),
         access_location::device,
         access_mode::read);
 
@@ -122,6 +127,7 @@ void HelfrichMeshForceComputeGPU::computeForces(uint64_t timestep)
                                        m_virial.getPitch(),
                                        m_pdata->getN(),
                                        d_pos.data,
+                                       d_tag.data,
                                        box,
                                        d_sigma.data,
                                        d_sigma_dash.data,
@@ -133,7 +139,7 @@ void HelfrichMeshForceComputeGPU::computeForces(uint64_t timestep)
                                        m_tuner_force->getParam(),
                                        d_flags.data);
 
-    if (this->m_exec_conf->isCUDAErrorCheckingEnabled())
+    if (m_exec_conf->isCUDAErrorCheckingEnabled())
         {
         CHECK_CUDA_ERROR();
 
@@ -142,7 +148,7 @@ void HelfrichMeshForceComputeGPU::computeForces(uint64_t timestep)
 
         if (h_flags.data[0] & 1)
             {
-            this->m_exec_conf->msg->error()
+            m_exec_conf->msg->error()
                 << "helfrich: bond out of bounds (" << h_flags.data[0] << ")" << std::endl
                 << std::endl;
             throw std::runtime_error("Error in meshbond calculation");
@@ -163,17 +169,21 @@ void HelfrichMeshForceComputeGPU::precomputeParameter()
                                       access_location::device,
                                       access_mode::readwrite);
 
-    BoxDim box = this->m_pdata->getGlobalBox();
+    ArrayHandle<unsigned int> d_tag(m_pdata->getTags(),
+                                      access_location::device,
+                                      access_mode::read);
+
+    BoxDim box = m_pdata->getGlobalBox();
 
     const GPUArray<typename MeshBond::members_t>& gpu_meshbond_list
-        = this->m_mesh_data->getMeshBondData()->getGPUTable();
-    const Index2D& gpu_table_indexer = this->m_mesh_data->getMeshBondData()->getGPUTableIndexer();
+        = m_mesh_data->getMeshBondData()->getGPUTable();
+    const Index2D& gpu_table_indexer = m_mesh_data->getMeshBondData()->getGPUTableIndexer();
 
     ArrayHandle<typename MeshBond::members_t> d_gpu_meshbondlist(gpu_meshbond_list,
                                                                  access_location::device,
                                                                  access_mode::read);
     ArrayHandle<unsigned int> d_gpu_n_meshbond(
-        this->m_mesh_data->getMeshBondData()->getNGroupsArray(),
+        m_mesh_data->getMeshBondData()->getNGroupsArray(),
         access_location::device,
         access_mode::read);
 
@@ -182,18 +192,44 @@ void HelfrichMeshForceComputeGPU::precomputeParameter()
                                        d_sigma_dash.data,
                                        m_pdata->getN(),
                                        d_pos.data,
+                                       d_tag.data,
                                        box,
                                        d_gpu_meshbondlist.data,
                                        gpu_table_indexer,
                                        d_gpu_n_meshbond.data,
                                        m_tuner_sigma->getParam());
 
-    if (this->m_exec_conf->isCUDAErrorCheckingEnabled())
+    if (m_exec_conf->isCUDAErrorCheckingEnabled())
         {
         CHECK_CUDA_ERROR();
         }
 
     m_tuner_sigma->end();
+
+#ifdef ENABLE_MPI
+
+    ArrayHandle<Scalar> h_sigma(m_sigma, access_location::host, access_mode::readwrite);
+    ArrayHandle<Scalar3> h_sigma_dash(m_sigma_dash,
+                                      access_location::host,
+                                      access_mode::readwrite);
+    if (m_sysdef->isDomainDecomposed())
+        {
+        // reduce sigma and sigma_dash to all ranks
+        MPI_Allreduce(MPI_IN_PLACE,
+                      &h_sigma.data[0],
+                      m_pdata->getNGlobal(),
+                      MPI_HOOMD_SCALAR,
+                      MPI_SUM,
+                      m_exec_conf->getMPICommunicator());
+
+        MPI_Allreduce(MPI_IN_PLACE,
+                      &h_sigma_dash.data[0],
+                      3*m_pdata->getNGlobal(),
+                      MPI_HOOMD_SCALAR,
+                      MPI_SUM,
+                      m_exec_conf->getMPICommunicator());
+        }
+#endif
     }
 
 namespace detail
