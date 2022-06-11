@@ -36,6 +36,7 @@ __global__ void gpu_compute_helfrich_sigma_kernel(Scalar* d_sigma,
                                                   const Scalar4* d_pos,
                                       		  const unsigned int* d_tag,
                                                   BoxDim box,
+						  const unsigned int myrank,
                                                   const group_storage<4>* blist,
                                                   const Index2D blist_idx,
                                                   const unsigned int* n_bonds_list)
@@ -153,7 +154,6 @@ __global__ void gpu_compute_helfrich_sigma_kernel(Scalar* d_sigma,
         sigma_dash += sigma_dash_a;
         }
       	
-
     // now that the force calculation is complete, write out the result (MEM TRANSFER: 20 bytes)
     d_sigma[ptag] = sigma;
     d_sigma_dash[ptag] = sigma_dash;
@@ -178,6 +178,7 @@ hipError_t gpu_compute_helfrich_sigma(Scalar* d_sigma,
                                       const Scalar4* d_pos,
                                       const unsigned int* d_tag,
                                       const BoxDim& box,
+                                      const unsigned int myrank,
                                       const group_storage<4>* blist,
                                       const Index2D blist_idx,
                                       const unsigned int* n_bonds_list,
@@ -206,6 +207,7 @@ hipError_t gpu_compute_helfrich_sigma(Scalar* d_sigma,
                        d_pos,
 		       d_tag,
                        box,
+		       myrank,
                        blist,
                        blist_idx,
                        n_bonds_list);
@@ -235,6 +237,7 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
                                                   const Scalar4* d_pos,
                                       		  const unsigned int* d_tag,
                                                   BoxDim box,
+						  const unsigned int myrank,
                                                   const Scalar* d_sigma,
                                                   const Scalar3* d_sigma_dash,
                                                   const group_storage<4>* blist,
@@ -469,10 +472,10 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
         Fa.z += (dsigma_dash_c * inv_sigma_c * sigma_dash_c.z - sigma_dash_c2 * dsigma_c.z);
         Fa.z += (dsigma_dash_d * inv_sigma_d * sigma_dash_d.z - sigma_dash_d2 * dsigma_d.z);
 
-        //Fa *= K;
-        Fa.x = 0;
-        Fa.y = 0;
-        Fa.z = 0;
+        Fa *= K;
+        //Fa.x = 0;
+        //Fa.y = 0;
+        //Fa.z = 0;
 
         force.x += Fa.x;
         force.y += Fa.y;
@@ -521,6 +524,7 @@ hipError_t gpu_compute_helfrich_force(Scalar4* d_force,
                                       const Scalar4* d_pos,
                                       const unsigned int* d_tag,
                                       const BoxDim& box,
+				      const unsigned int myrank,
                                       const Scalar* d_sigma,
                                       const Scalar3* d_sigma_dash,
                                       const group_storage<4>* blist,
@@ -555,6 +559,7 @@ hipError_t gpu_compute_helfrich_force(Scalar4* d_force,
                        d_pos,
                        d_tag,
                        box,
+		       myrank,
                        d_sigma,
                        d_sigma_dash,
                        blist,

@@ -89,6 +89,7 @@ void HelfrichMeshForceComputeGPU::computeForces(uint64_t timestep)
 
     precomputeParameter();
 
+
     // access the particle data arrays
     ArrayHandle<Scalar4> d_pos(m_pdata->getPositions(), access_location::device, access_mode::read);
 
@@ -129,6 +130,7 @@ void HelfrichMeshForceComputeGPU::computeForces(uint64_t timestep)
                                        d_pos.data,
                                        d_tag.data,
                                        box,
+				       m_exec_conf->getRank(),
                                        d_sigma.data,
                                        d_sigma_dash.data,
                                        d_gpu_meshbondlist.data,
@@ -164,10 +166,6 @@ void HelfrichMeshForceComputeGPU::precomputeParameter()
     {
     // access the particle data arrays
     ArrayHandle<Scalar4> d_pos(m_pdata->getPositions(), access_location::device, access_mode::read);
-    ArrayHandle<Scalar> d_sigma(m_sigma, access_location::device, access_mode::readwrite);
-    ArrayHandle<Scalar3> d_sigma_dash(m_sigma_dash,
-                                      access_location::device,
-                                      access_mode::readwrite);
 
     ArrayHandle<unsigned int> d_tag(m_pdata->getTags(),
                                       access_location::device,
@@ -187,6 +185,13 @@ void HelfrichMeshForceComputeGPU::precomputeParameter()
         access_location::device,
         access_mode::read);
 
+    GlobalVector<Scalar3> tmp_sigma_dash(m_pdata->getNGlobal(), m_exec_conf);
+    GlobalVector<Scalar> tmp_sigma(m_pdata->getNGlobal(), m_exec_conf);
+
+    ArrayHandle<Scalar3> d_sigma_dash(tmp_sigma_dash, access_location::device, access_mode::overwrite);
+    ArrayHandle<Scalar> d_sigma(tmp_sigma, access_location::device, access_mode::overwrite);
+
+    
     m_tuner_sigma->begin();
     kernel::gpu_compute_helfrich_sigma(d_sigma.data,
                                        d_sigma_dash.data,
@@ -194,42 +199,42 @@ void HelfrichMeshForceComputeGPU::precomputeParameter()
                                        d_pos.data,
                                        d_tag.data,
                                        box,
+        			       m_exec_conf->getRank(),
                                        d_gpu_meshbondlist.data,
                                        gpu_table_indexer,
                                        d_gpu_n_meshbond.data,
                                        m_tuner_sigma->getParam());
-
+    
     if (m_exec_conf->isCUDAErrorCheckingEnabled())
-        {
-        CHECK_CUDA_ERROR();
-        }
+    	{
+    	CHECK_CUDA_ERROR();
+    	}
 
     m_tuner_sigma->end();
 
 #ifdef ENABLE_MPI
-
-    ArrayHandle<Scalar> h_sigma(m_sigma, access_location::host, access_mode::read);
-    ArrayHandle<Scalar3> h_sigma_dash(m_sigma_dash,
-                                      access_location::host,
-                                      access_mode::read);
     if (m_sysdef->isDomainDecomposed())
         {
+
         // reduce sigma and sigma_dash to all ranks
         MPI_Allreduce(MPI_IN_PLACE,
-                      &h_sigma.data[0],
+                      &d_sigma.data[0],
                       m_pdata->getNGlobal(),
                       MPI_HOOMD_SCALAR,
                       MPI_SUM,
                       m_exec_conf->getMPICommunicator());
 
         MPI_Allreduce(MPI_IN_PLACE,
-                      &h_sigma_dash.data[0],
+                      &d_sigma_dash.data[0],
                       3*m_pdata->getNGlobal(),
                       MPI_HOOMD_SCALAR,
                       MPI_SUM,
                       m_exec_conf->getMPICommunicator());
         }
 #endif
+
+    m_sigma_dash.swap(tmp_sigma_dash);
+    m_sigma.swap(tmp_sigma);
     }
 
 namespace detail
