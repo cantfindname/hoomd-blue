@@ -21,8 +21,7 @@ namespace md
 namespace kernel
     {
 //! Kernel driver that computes the sigmas for HelfrichMeshForceComputeGPU
-hipError_t gpu_compute_helfrich_sigma(Scalar* d_sigma,
-                                      Scalar3* d_sigma_dash,
+hipError_t gpu_compute_helfrich_sigma(Scalar4* d_sigma,
                                       const unsigned int N,
                                       const Scalar4* d_pos,
                                       const unsigned int* d_tag,
@@ -43,8 +42,7 @@ hipError_t gpu_compute_helfrich_force(Scalar4* d_force,
                                       const unsigned int* d_tag,
                                       const BoxDim& box,
                                       const unsigned int myrank,
-                                      const Scalar* d_sigma,
-                                      const Scalar3* d_sigma_dash,
+                                      const Scalar4* d_sigma,
                                       const group_storage<4>* blist,
                                       const Index2D blist_idx,
                                       const unsigned int* n_bonds_list,

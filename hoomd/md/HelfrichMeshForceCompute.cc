@@ -34,16 +34,7 @@ HelfrichMeshForceCompute::HelfrichMeshForceCompute(std::shared_ptr<SystemDefinit
     // allocate the parameters
     m_K = new Scalar[m_pdata->getNTypes()];
 
-    // allocate memory for the per-type normal verctors
-    GlobalVector<Scalar3> tmp_sigma_dash(m_pdata->getNGlobal(), m_exec_conf);
-
-    m_sigma_dash.swap(tmp_sigma_dash);
-    TAG_ALLOCATION(m_sigma_dash);
-
-    // allocate memory for the per-type normal verctors
-    
-
-    GlobalVector<Scalar> tmp_sigma(m_pdata->getNGlobal(), m_exec_conf);
+    GlobalVector<Scalar4> tmp_sigma(m_pdata->getNGlobal(), m_exec_conf);
 
     m_sigma.swap(tmp_sigma);
     TAG_ALLOCATION(m_sigma);
@@ -51,13 +42,8 @@ HelfrichMeshForceCompute::HelfrichMeshForceCompute(std::shared_ptr<SystemDefinit
 #if defined(ENABLE_HIP) && defined(__HIP_PLATFORM_NVCC__)
     if (m_exec_conf->isCUDAEnabled() && m_exec_conf->allConcurrentManagedAccess())
         {
-        cudaMemAdvise(m_sigma_dash.get(),
-                      sizeof(Scalar3) * m_sigma_dash.getNumElements(),
-                      cudaMemAdviseSetReadMostly,
-                      0);
-
         cudaMemAdvise(m_sigma.get(),
-                      sizeof(Scalar) * m_sigma.getNumElements(),
+                      sizeof(Scalar4) * m_sigma.getNumElements(),
                       cudaMemAdviseSetReadMostly,
                       0);
         }
@@ -128,8 +114,7 @@ void HelfrichMeshForceCompute::computeForces(uint64_t timestep)
         access_location::host,
         access_mode::read);
 
-    ArrayHandle<Scalar> h_sigma(m_sigma, access_location::host, access_mode::read);
-    ArrayHandle<Scalar3> h_sigma_dash(m_sigma_dash, access_location::host, access_mode::read);
+    ArrayHandle<Scalar4> h_sigma(m_sigma, access_location::host, access_mode::read);
 
     // there are enough other checks on the input data: but it doesn't hurt to be safe
     assert(h_force.data);
@@ -138,7 +123,6 @@ void HelfrichMeshForceCompute::computeForces(uint64_t timestep)
     assert(h_rtag.data);
     assert(h_bonds.data);
     assert(h_sigma.data);
-    assert(h_sigma_dash.data);
 
     // Zero data for force calculation.
     memset((void*)h_force.data, 0, sizeof(Scalar4) * m_force.getNumElements());
@@ -320,15 +304,20 @@ void HelfrichMeshForceCompute::computeForces(uint64_t timestep)
 
         Scalar sigma_hat_ab = (cot_accb + cot_addb) / 2;
 
-        Scalar3 sigma_dash_a = h_sigma_dash.data[idx_a]; // precomputed
-        Scalar3 sigma_dash_b = h_sigma_dash.data[idx_b]; // precomputed
-        Scalar3 sigma_dash_c = h_sigma_dash.data[idx_c]; // precomputed
-        Scalar3 sigma_dash_d = h_sigma_dash.data[idx_d]; // precomputed
+        Scalar4 sigma_all_a = h_sigma.data[idx_a]; // precomputed
+        Scalar4 sigma_all_b = h_sigma.data[idx_b]; // precomputed
+        Scalar4 sigma_all_c = h_sigma.data[idx_c]; // precomputed
+        Scalar4 sigma_all_d = h_sigma.data[idx_d]; // precomputed
 
-        Scalar sigma_a = h_sigma.data[idx_a]; // precomputed
-        Scalar sigma_b = h_sigma.data[idx_b]; // precomputed
-        Scalar sigma_c = h_sigma.data[idx_c]; // precomputed
-        Scalar sigma_d = h_sigma.data[idx_d]; // precomputed
+        Scalar3 sigma_dash_a = make_scalar3(sigma_all_a.x,sigma_all_a.y,sigma_all_a.z); // precomputed
+        Scalar3 sigma_dash_b = make_scalar3(sigma_all_b.x,sigma_all_b.y,sigma_all_b.z); // precomputed
+        Scalar3 sigma_dash_c = make_scalar3(sigma_all_c.x,sigma_all_c.y,sigma_all_c.z); // precomputed
+        Scalar3 sigma_dash_d = make_scalar3(sigma_all_d.x,sigma_all_d.y,sigma_all_d.z); // precomputed
+
+        Scalar sigma_a = sigma_all_a.w; // precomputed
+        Scalar sigma_b = sigma_all_b.w; // precomputed
+        Scalar sigma_c = sigma_all_c.w; // precomputed
+        Scalar sigma_d = sigma_all_d.w; // precomputed
 
         Scalar3 dc_abbc, dc_abbd, dc_baac, dc_baad;
         dc_abbc = -nbc / rab - c_abbc / rab * nab;
@@ -430,11 +419,9 @@ void HelfrichMeshForceCompute::precomputeParameter()
     // get a local copy of the simulation box too
     const BoxDim& box = m_pdata->getGlobalBox();
 
-    ArrayHandle<Scalar> h_sigma(m_sigma, access_location::host, access_mode::overwrite);
-    ArrayHandle<Scalar3> h_sigma_dash(m_sigma_dash, access_location::host, access_mode::overwrite);
+    ArrayHandle<Scalar4> h_sigma(m_sigma, access_location::host, access_mode::overwrite);
 
-    memset((void*)h_sigma.data, 0, sizeof(Scalar) * m_sigma.getNumElements());
-    memset((void*)h_sigma_dash.data, 0, sizeof(Scalar3) * m_sigma_dash.getNumElements());
+    memset((void*)h_sigma.data, 0, sizeof(Scalar4) * m_sigma.getNumElements());
 
     // for each of the angles
     const unsigned int size = (unsigned int)m_mesh_data->getMeshBondData()->getN();
@@ -555,16 +542,16 @@ void HelfrichMeshForceCompute::precomputeParameter()
 
         Scalar sigma_a = sigma_hat_ab * rsqab * 0.25;
 
-        h_sigma.data[idx_a] += sigma_a;
-        h_sigma.data[idx_b] += sigma_a;
+        h_sigma.data[idx_a].w += sigma_a;
+        h_sigma.data[idx_b].w += sigma_a;
 
-        h_sigma_dash.data[idx_a].x += sigma_hat_ab * dab.x;
-        h_sigma_dash.data[idx_a].y += sigma_hat_ab * dab.y;
-        h_sigma_dash.data[idx_a].z += sigma_hat_ab * dab.z;
+        h_sigma.data[idx_a].x += sigma_hat_ab * dab.x;
+        h_sigma.data[idx_a].y += sigma_hat_ab * dab.y;
+        h_sigma.data[idx_a].z += sigma_hat_ab * dab.z;
 
-        h_sigma_dash.data[idx_b].x -= sigma_hat_ab * dab.x;
-        h_sigma_dash.data[idx_b].y -= sigma_hat_ab * dab.y;
-        h_sigma_dash.data[idx_b].z -= sigma_hat_ab * dab.z;
+        h_sigma.data[idx_b].x -= sigma_hat_ab * dab.x;
+        h_sigma.data[idx_b].y -= sigma_hat_ab * dab.y;
+        h_sigma.data[idx_b].z -= sigma_hat_ab * dab.z;
         }
     }
 

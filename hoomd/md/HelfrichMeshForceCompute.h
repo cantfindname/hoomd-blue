@@ -89,11 +89,8 @@ class PYBIND11_EXPORT HelfrichMeshForceCompute : public ForceCompute
 
     std::shared_ptr<MeshDefinition> m_mesh_data; //!< Mesh data to use in computing helfich energy
 
-    GlobalVector<Scalar3>
-        m_sigma_dash; //! sum of the distances weighted by the bending angle over all neighbors
-
-    GlobalVector<Scalar>
-        m_sigma; //! sum of the vectors weighted by the bending angle over all neighbors
+    GlobalVector<Scalar4>
+        m_sigma; //! sum of the distances weighted by the bending angle over all neighbors
 
     // difference for dynamic bonding loop
     Scalar m_sigma_diff_a;

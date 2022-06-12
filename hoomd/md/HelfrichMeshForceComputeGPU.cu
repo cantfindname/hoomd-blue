@@ -30,8 +30,7 @@ namespace kernel
     \param blist List of mesh bonds stored on the GPU
     \param n_bonds_list List of numbers of mesh bonds stored on the GPU
 */
-__global__ void gpu_compute_helfrich_sigma_kernel(Scalar* d_sigma,
-                                                  Scalar3* d_sigma_dash,
+__global__ void gpu_compute_helfrich_sigma_kernel(Scalar4* d_sigma,
                                                   const unsigned int N,
                                                   const Scalar4* d_pos,
                                       		  const unsigned int* d_tag,
@@ -57,9 +56,7 @@ __global__ void gpu_compute_helfrich_sigma_kernel(Scalar* d_sigma,
     Scalar3 pos = make_scalar3(postype.x, postype.y, postype.z);
 
     // initialize the force to 0
-    Scalar3 sigma_dash = make_scalar3(Scalar(0.0), Scalar(0.0), Scalar(0.0));
-
-    Scalar sigma = 0.0;
+    Scalar4 sigma = make_scalar4(Scalar(0.0), Scalar(0.0), Scalar(0.0), Scalar(0.0));
 
     // loop over all angles
     for (int bond_idx = 0; bond_idx < n_bonds; bond_idx++)
@@ -149,14 +146,15 @@ __global__ void gpu_compute_helfrich_sigma_kernel(Scalar* d_sigma,
 
         Scalar3 sigma_dash_a = sigma_hat_ab * dab;
 
-        sigma += sigma_a;
+        sigma.w += sigma_a;
 
-        sigma_dash += sigma_dash_a;
+        sigma.x += sigma_dash_a.x;
+        sigma.y += sigma_dash_a.y;
+        sigma.z += sigma_dash_a.z;
         }
       	
     // now that the force calculation is complete, write out the result (MEM TRANSFER: 20 bytes)
     d_sigma[ptag] = sigma;
-    d_sigma_dash[ptag] = sigma_dash;
     }
 
 /*! \param d_sigma Device memory to write per paricle sigma
@@ -172,8 +170,7 @@ __global__ void gpu_compute_helfrich_sigma_kernel(Scalar* d_sigma,
     \returns Any error code resulting from the kernel launch
     \note Always returns hipSuccess in release builds to avoid the hipDeviceSynchronize()
 */
-hipError_t gpu_compute_helfrich_sigma(Scalar* d_sigma,
-                                      Scalar3* d_sigma_dash,
+hipError_t gpu_compute_helfrich_sigma(Scalar4* d_sigma,
                                       const unsigned int N,
                                       const Scalar4* d_pos,
                                       const unsigned int* d_tag,
@@ -202,7 +199,6 @@ hipError_t gpu_compute_helfrich_sigma(Scalar* d_sigma,
                        0,
                        0,
                        d_sigma,
-                       d_sigma_dash,
                        N,
                        d_pos,
 		       d_tag,
@@ -238,8 +234,7 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
                                       		  const unsigned int* d_tag,
                                                   BoxDim box,
 						  const unsigned int myrank,
-                                                  const Scalar* d_sigma,
-                                                  const Scalar3* d_sigma_dash,
+                                                  const Scalar4* d_sigma,
                                                   const group_storage<4>* blist,
                                                   const Index2D blist_idx,
                                                   const unsigned int* n_bonds_list,
@@ -262,8 +257,9 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
 
     unsigned int ptag_a = d_tag[idx];
 
-    Scalar3 sigma_dash_a = d_sigma_dash[ptag_a]; // precomputed
-    Scalar sigma_a = d_sigma[ptag_a];            // precomputed
+    Scalar4 sigmas = d_sigma[ptag_a];
+    Scalar3 sigma_dash_a = make_scalar3(sigmas.x,sigmas.y,sigmas.z); // precomputed
+    Scalar sigma_a = sigmas.w;            // precomputed
     Scalar inv_sigma_a = 1.0 / sigma_a;
     Scalar sigma_dash_a2 = 0.5 * dot(sigma_dash_a, sigma_dash_a) * inv_sigma_a * inv_sigma_a;
 
@@ -414,13 +410,17 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
         unsigned int ptag_c = d_tag[cur_idx_c];
         unsigned int ptag_d = d_tag[cur_idx_d];
 
-        Scalar3 sigma_dash_b = d_sigma_dash[ptag_b]; // precomputed
-        Scalar3 sigma_dash_c = d_sigma_dash[ptag_c];    // precomputed
-        Scalar3 sigma_dash_d = d_sigma_dash[ptag_d];    // precomputed
+        sigmas = d_sigma[ptag_b];
+    	Scalar3 sigma_dash_b = make_scalar3(sigmas.x,sigmas.y,sigmas.z); // precomputed
+   	Scalar sigma_b = sigmas.w;            // precomputed
 
-        Scalar sigma_b = d_sigma[ptag_b]; // precomputed
-        Scalar sigma_c = d_sigma[ptag_c];    // precomputed
-        Scalar sigma_d = d_sigma[ptag_d];    // precomputed
+        sigmas = d_sigma[ptag_c];
+    	Scalar3 sigma_dash_c = make_scalar3(sigmas.x,sigmas.y,sigmas.z); // precomputed
+   	Scalar sigma_c = sigmas.w;            // precomputed
+
+        sigmas = d_sigma[ptag_d];
+    	Scalar3 sigma_dash_d = make_scalar3(sigmas.x,sigmas.y,sigmas.z); // precomputed
+   	Scalar sigma_d = sigmas.w;            // precomputed
 
         Scalar3 dc_abbc, dc_abbd, dc_baac, dc_baad;
         dc_abbc = -nbc / rab - c_abbc / rab * nab;
@@ -525,8 +525,7 @@ hipError_t gpu_compute_helfrich_force(Scalar4* d_force,
                                       const unsigned int* d_tag,
                                       const BoxDim& box,
 				      const unsigned int myrank,
-                                      const Scalar* d_sigma,
-                                      const Scalar3* d_sigma_dash,
+                                      const Scalar4* d_sigma,
                                       const group_storage<4>* blist,
                                       const Index2D blist_idx,
                                       const unsigned int* n_bonds_list,
@@ -561,7 +560,6 @@ hipError_t gpu_compute_helfrich_force(Scalar4* d_force,
                        box,
 		       myrank,
                        d_sigma,
-                       d_sigma_dash,
                        blist,
                        blist_idx,
                        n_bonds_list,

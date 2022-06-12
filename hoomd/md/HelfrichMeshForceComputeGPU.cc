@@ -47,26 +47,20 @@ HelfrichMeshForceComputeGPU::HelfrichMeshForceComputeGPU(std::shared_ptr<SystemD
     m_tuner_sigma.reset(
         new Autotuner(warp_size, 1024, warp_size, 5, 100000, "helfrich_sigma", m_exec_conf));
 
-    GlobalVector<Scalar3> tmp_sigma_dash(m_pdata->getNGlobal(), m_exec_conf);
-    GlobalVector<Scalar> tmp_sigma(m_pdata->getNGlobal(), m_exec_conf);
+    GlobalVector<Scalar4> tmp_sigma(m_pdata->getNGlobal(), m_exec_conf);
 
         {
-        ArrayHandle<Scalar3> old_sigma_dash(m_sigma_dash, access_location::host);
-        ArrayHandle<Scalar> old_sigma(m_sigma, access_location::host);
+        ArrayHandle<Scalar4> old_sigma(m_sigma, access_location::host);
 
-        ArrayHandle<Scalar3> sigma_dash(tmp_sigma_dash, access_location::host);
-        ArrayHandle<Scalar> sigma(tmp_sigma, access_location::host);
+        ArrayHandle<Scalar4> sigma(tmp_sigma, access_location::host);
 
         // for each type of the particles in the group
         for (unsigned int i = 0; i < m_pdata->getNGlobal(); i++)
             {
-            sigma_dash.data[i] = old_sigma_dash.data[i];
-
             sigma.data[i] = old_sigma.data[i];
             }
         }
 
-    m_sigma_dash.swap(tmp_sigma_dash);
     m_sigma.swap(tmp_sigma);
     }
 
@@ -93,8 +87,7 @@ void HelfrichMeshForceComputeGPU::computeForces(uint64_t timestep)
     // access the particle data arrays
     ArrayHandle<Scalar4> d_pos(m_pdata->getPositions(), access_location::device, access_mode::read);
 
-    ArrayHandle<Scalar> d_sigma(m_sigma, access_location::device, access_mode::read);
-    ArrayHandle<Scalar3> d_sigma_dash(m_sigma_dash, access_location::device, access_mode::read);
+    ArrayHandle<Scalar4> d_sigma(m_sigma, access_location::device, access_mode::read);
 
     ArrayHandle<unsigned int> d_tag(m_pdata->getTags(),
                                       access_location::device,
@@ -132,7 +125,6 @@ void HelfrichMeshForceComputeGPU::computeForces(uint64_t timestep)
                                        box,
 				       m_exec_conf->getRank(),
                                        d_sigma.data,
-                                       d_sigma_dash.data,
                                        d_gpu_meshbondlist.data,
                                        gpu_table_indexer,
                                        d_gpu_n_meshbond.data,
@@ -185,16 +177,13 @@ void HelfrichMeshForceComputeGPU::precomputeParameter()
         access_location::device,
         access_mode::read);
 
-    GlobalVector<Scalar3> tmp_sigma_dash(m_pdata->getNGlobal(), m_exec_conf);
-    GlobalVector<Scalar> tmp_sigma(m_pdata->getNGlobal(), m_exec_conf);
+    GlobalVector<Scalar4> tmp_sigma(m_pdata->getNGlobal(), m_exec_conf);
 
-    ArrayHandle<Scalar3> d_sigma_dash(tmp_sigma_dash, access_location::device, access_mode::overwrite);
-    ArrayHandle<Scalar> d_sigma(tmp_sigma, access_location::device, access_mode::overwrite);
+    ArrayHandle<Scalar4> d_sigma(tmp_sigma, access_location::device, access_mode::overwrite);
 
     
     m_tuner_sigma->begin();
     kernel::gpu_compute_helfrich_sigma(d_sigma.data,
-                                       d_sigma_dash.data,
                                        m_pdata->getN(),
                                        d_pos.data,
                                        d_tag.data,
@@ -216,24 +205,15 @@ void HelfrichMeshForceComputeGPU::precomputeParameter()
     if (m_sysdef->isDomainDecomposed())
         {
 
-        // reduce sigma and sigma_dash to all ranks
         MPI_Allreduce(MPI_IN_PLACE,
                       &d_sigma.data[0],
-                      m_pdata->getNGlobal(),
-                      MPI_HOOMD_SCALAR,
-                      MPI_SUM,
-                      m_exec_conf->getMPICommunicator());
-
-        MPI_Allreduce(MPI_IN_PLACE,
-                      &d_sigma_dash.data[0],
-                      3*m_pdata->getNGlobal(),
+                      4*m_pdata->getNGlobal(),
                       MPI_HOOMD_SCALAR,
                       MPI_SUM,
                       m_exec_conf->getMPICommunicator());
         }
 #endif
 
-    m_sigma_dash.swap(tmp_sigma_dash);
     m_sigma.swap(tmp_sigma);
     }
 
