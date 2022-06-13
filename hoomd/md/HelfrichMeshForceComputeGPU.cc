@@ -47,7 +47,7 @@ HelfrichMeshForceComputeGPU::HelfrichMeshForceComputeGPU(std::shared_ptr<SystemD
     m_tuner_sigma.reset(
         new Autotuner(warp_size, 1024, warp_size, 5, 100000, "helfrich_sigma", m_exec_conf));
 
-    GlobalVector<Scalar4> tmp_sigma(m_pdata->getNGlobal(), m_exec_conf);
+    GlobalVector<Scalar4> tmp_sigma(m_mesh_data->getMeshBondData()->getMaxTag(), m_exec_conf);
 
         {
         ArrayHandle<Scalar4> old_sigma(m_sigma, access_location::host);
@@ -55,7 +55,7 @@ HelfrichMeshForceComputeGPU::HelfrichMeshForceComputeGPU(std::shared_ptr<SystemD
         ArrayHandle<Scalar4> sigma(tmp_sigma, access_location::host);
 
         // for each type of the particles in the group
-        for (unsigned int i = 0; i < m_pdata->getNGlobal(); i++)
+        for (unsigned int i = 0; i < m_mesh_data->getMeshBondData()->getMaxTag(); i++)
             {
             sigma.data[i] = old_sigma.data[i];
             }
@@ -177,7 +177,7 @@ void HelfrichMeshForceComputeGPU::precomputeParameter()
         access_location::device,
         access_mode::read);
 
-    GlobalVector<Scalar4> tmp_sigma(m_pdata->getNGlobal(), m_exec_conf);
+    GlobalVector<Scalar4> tmp_sigma(m_mesh_data->getMeshBondData()->getMaxTag(), m_exec_conf);
 
     ArrayHandle<Scalar4> d_sigma(tmp_sigma, access_location::device, access_mode::overwrite);
 
@@ -188,7 +188,7 @@ void HelfrichMeshForceComputeGPU::precomputeParameter()
                                        d_pos.data,
                                        d_tag.data,
                                        box,
-        			       m_exec_conf->getRank(),
+        			       m_mesh_data->getMeshBondData()->getMaxTag(),
                                        d_gpu_meshbondlist.data,
                                        gpu_table_indexer,
                                        d_gpu_n_meshbond.data,
@@ -207,7 +207,7 @@ void HelfrichMeshForceComputeGPU::precomputeParameter()
 
         MPI_Allreduce(MPI_IN_PLACE,
                       &d_sigma.data[0],
-                      4*m_pdata->getNGlobal(),
+                      4*m_mesh_data->getMeshBondData()->getMaxTag(),
                       MPI_HOOMD_SCALAR,
                       MPI_SUM,
                       m_exec_conf->getMPICommunicator());

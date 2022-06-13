@@ -75,6 +75,8 @@ class MeshGroupData : public BondedGroupData<group_size, Group, name, true>
      */
     unsigned int addBondedGroup(Group g);
 
+    unsigned int getMaxTag(){return m_maxTag;};
+
 #ifdef ENABLE_MPI
     //! Helper function to transfer bonded groups connected to a single particle
     /*! \param tag Tag of particle that moves between domains
@@ -91,6 +93,8 @@ class MeshGroupData : public BondedGroupData<group_size, Group, name, true>
     //! Helper function to rebuild lookup by index table on the GPU
     virtual void rebuildGPUTableGPU();
 #endif
+
+    unsigned int m_maxTag;
     };
 
 namespace detail

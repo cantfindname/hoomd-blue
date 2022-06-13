@@ -35,7 +35,7 @@ __global__ void gpu_compute_helfrich_sigma_kernel(Scalar4* d_sigma,
                                                   const Scalar4* d_pos,
                                       		  const unsigned int* d_tag,
                                                   BoxDim box,
-						  const unsigned int myrank,
+						  const unsigned int maxTag,
                                                   const group_storage<4>* blist,
                                                   const Index2D blist_idx,
                                                   const unsigned int* n_bonds_list)
@@ -46,10 +46,13 @@ __global__ void gpu_compute_helfrich_sigma_kernel(Scalar4* d_sigma,
     if (idx >= N)
         return;
 
+    unsigned int ptag = d_tag[idx];
+
+    if(maxTag <= ptag)
+        return;
+
     // load in the length of the list for this thread (MEM TRANSFER: 4 bytes)
     int n_bonds = n_bonds_list[idx];
-
-    unsigned int ptag = d_tag[idx];
 
     // read in the position of our b-particle from the a-b-c triplet. (MEM TRANSFER: 16 bytes)
     Scalar4 postype = __ldg(d_pos + idx);
@@ -154,6 +157,7 @@ __global__ void gpu_compute_helfrich_sigma_kernel(Scalar4* d_sigma,
         }
       	
     // now that the force calculation is complete, write out the result (MEM TRANSFER: 20 bytes)
+
     d_sigma[ptag] = sigma;
     }
 
@@ -175,7 +179,7 @@ hipError_t gpu_compute_helfrich_sigma(Scalar4* d_sigma,
                                       const Scalar4* d_pos,
                                       const unsigned int* d_tag,
                                       const BoxDim& box,
-                                      const unsigned int myrank,
+                                      const unsigned int maxTag,
                                       const group_storage<4>* blist,
                                       const Index2D blist_idx,
                                       const unsigned int* n_bonds_list,
@@ -203,7 +207,7 @@ hipError_t gpu_compute_helfrich_sigma(Scalar4* d_sigma,
                        d_pos,
 		       d_tag,
                        box,
-		       myrank,
+		       maxTag,
                        blist,
                        blist_idx,
                        n_bonds_list);
@@ -233,7 +237,7 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
                                                   const Scalar4* d_pos,
                                       		  const unsigned int* d_tag,
                                                   BoxDim box,
-						  const unsigned int myrank,
+						  const unsigned int maxTag,
                                                   const Scalar4* d_sigma,
                                                   const group_storage<4>* blist,
                                                   const Index2D blist_idx,
@@ -248,14 +252,17 @@ __global__ void gpu_compute_helfrich_force_kernel(Scalar4* d_force,
     if (idx >= N)
         return;
 
+    unsigned int ptag_a = d_tag[idx];
+
+    if(maxTag <= ptag_a)
+        return;
+
     // load in the length of the list for this thread (MEM TRANSFER: 4 bytes)
     int n_bonds = n_bonds_list[idx];
 
     // read in the position of our b-particle from the a-b-c triplet. (MEM TRANSFER: 16 bytes)
     Scalar4 postype = __ldg(d_pos + idx);
     Scalar3 pos = make_scalar3(postype.x, postype.y, postype.z);
-
-    unsigned int ptag_a = d_tag[idx];
 
     Scalar4 sigmas = d_sigma[ptag_a];
     Scalar3 sigma_dash_a = make_scalar3(sigmas.x,sigmas.y,sigmas.z); // precomputed
@@ -524,7 +531,7 @@ hipError_t gpu_compute_helfrich_force(Scalar4* d_force,
                                       const Scalar4* d_pos,
                                       const unsigned int* d_tag,
                                       const BoxDim& box,
-				      const unsigned int myrank,
+				      const unsigned int maxTag,
                                       const Scalar4* d_sigma,
                                       const group_storage<4>* blist,
                                       const Index2D blist_idx,
@@ -558,7 +565,7 @@ hipError_t gpu_compute_helfrich_force(Scalar4* d_force,
                        d_pos,
                        d_tag,
                        box,
-		       myrank,
+		       maxTag,
                        d_sigma,
                        blist,
                        blist_idx,

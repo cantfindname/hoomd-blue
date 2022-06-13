@@ -129,6 +129,7 @@ void MeshGroupData<group_size, Group, name, snap, bond>::initializeFromSnapshot(
 
         std::vector<std::vector<unsigned int> > all_helper;
         unsigned int triag_number = 0;
+	m_maxTag = 0;
 
 
     	if (bond)
@@ -142,6 +143,10 @@ void MeshGroupData<group_size, Group, name, snap, bond>::initializeFromSnapshot(
     	        triag.tag[0] = snapshot.groups[group_idx].tag[0];
     	        triag.tag[1] = snapshot.groups[group_idx].tag[1];
     	        triag.tag[2] = snapshot.groups[group_idx].tag[2];
+
+		if(m_maxTag < triag.tag[0]) m_maxTag = triag.tag[0];
+		if(m_maxTag < triag.tag[1]) m_maxTag = triag.tag[1];
+		if(m_maxTag < triag.tag[2]) m_maxTag = triag.tag[2];
 
     	        bonds[0].tag[0] = triag.tag[0];
     	        bonds[0].tag[1] = triag.tag[1];
@@ -213,10 +218,17 @@ void MeshGroupData<group_size, Group, name, snap, bond>::initializeFromSnapshot(
     	        triag.tag[4] = snapshot.groups[group_idx].tag[1];
     	        triag.tag[5] = snapshot.groups[group_idx].tag[2];
 
+		if(m_maxTag < triag.tag[0]) m_maxTag = triag.tag[0];
+		if(m_maxTag < triag.tag[1]) m_maxTag = triag.tag[1];
+		if(m_maxTag < triag.tag[2]) m_maxTag = triag.tag[2];
+
     	        all_groups[group_idx] = triag;
     	        }
     	    }
     	}
+
+        m_maxTag++;
+
 
 #ifdef ENABLE_MPI
     if (this->m_pdata->getDomainDecomposition())
@@ -237,6 +249,7 @@ void MeshGroupData<group_size, Group, name, snap, bond>::initializeFromSnapshot(
             this->m_type_mapping = snapshot.type_mapping;
             }
 
+        bcast(m_maxTag, 0, this->m_exec_conf->getMPICommunicator());
         bcast(all_groups, 0, this->m_exec_conf->getMPICommunicator());
         bcast(all_typeval, 0, this->m_exec_conf->getMPICommunicator());
         bcast(this->m_type_mapping, 0, this->m_exec_conf->getMPICommunicator());

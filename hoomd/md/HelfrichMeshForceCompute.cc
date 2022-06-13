@@ -34,7 +34,7 @@ HelfrichMeshForceCompute::HelfrichMeshForceCompute(std::shared_ptr<SystemDefinit
     // allocate the parameters
     m_K = new Scalar[m_pdata->getNTypes()];
 
-    GlobalVector<Scalar4> tmp_sigma(m_pdata->getNGlobal(), m_exec_conf);
+    GlobalVector<Scalar4> tmp_sigma(m_mesh_data->getMeshBondData()->getMaxTag(), m_exec_conf);
 
     m_sigma.swap(tmp_sigma);
     TAG_ALLOCATION(m_sigma);
@@ -304,10 +304,10 @@ void HelfrichMeshForceCompute::computeForces(uint64_t timestep)
 
         Scalar sigma_hat_ab = (cot_accb + cot_addb) / 2;
 
-        Scalar4 sigma_all_a = h_sigma.data[idx_a]; // precomputed
-        Scalar4 sigma_all_b = h_sigma.data[idx_b]; // precomputed
-        Scalar4 sigma_all_c = h_sigma.data[idx_c]; // precomputed
-        Scalar4 sigma_all_d = h_sigma.data[idx_d]; // precomputed
+        Scalar4 sigma_all_a = h_sigma.data[btag_a]; // precomputed
+        Scalar4 sigma_all_b = h_sigma.data[btag_b]; // precomputed
+        Scalar4 sigma_all_c = h_sigma.data[btag_c]; // precomputed
+        Scalar4 sigma_all_d = h_sigma.data[btag_d]; // precomputed
 
         Scalar3 sigma_dash_a = make_scalar3(sigma_all_a.x,sigma_all_a.y,sigma_all_a.z); // precomputed
         Scalar3 sigma_dash_b = make_scalar3(sigma_all_b.x,sigma_all_b.y,sigma_all_b.z); // precomputed
@@ -542,16 +542,16 @@ void HelfrichMeshForceCompute::precomputeParameter()
 
         Scalar sigma_a = sigma_hat_ab * rsqab * 0.25;
 
-        h_sigma.data[idx_a].w += sigma_a;
-        h_sigma.data[idx_b].w += sigma_a;
+        h_sigma.data[btag_a].w += sigma_a;
+        h_sigma.data[btag_b].w += sigma_a;
 
-        h_sigma.data[idx_a].x += sigma_hat_ab * dab.x;
-        h_sigma.data[idx_a].y += sigma_hat_ab * dab.y;
-        h_sigma.data[idx_a].z += sigma_hat_ab * dab.z;
+        h_sigma.data[btag_a].x += sigma_hat_ab * dab.x;
+        h_sigma.data[btag_a].y += sigma_hat_ab * dab.y;
+        h_sigma.data[btag_a].z += sigma_hat_ab * dab.z;
 
-        h_sigma.data[idx_b].x -= sigma_hat_ab * dab.x;
-        h_sigma.data[idx_b].y -= sigma_hat_ab * dab.y;
-        h_sigma.data[idx_b].z -= sigma_hat_ab * dab.z;
+        h_sigma.data[btag_b].x -= sigma_hat_ab * dab.x;
+        h_sigma.data[btag_b].y -= sigma_hat_ab * dab.y;
+        h_sigma.data[btag_b].z -= sigma_hat_ab * dab.z;
         }
     }
 
